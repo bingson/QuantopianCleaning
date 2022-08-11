@@ -21,8 +21,8 @@ def run_pipeline_list(pipe, pipeline_dates):
     """
     Run pipeline data request for a list of specific dates.
 
-    This function wrapper enables the batch download of data for a list of 
-    discontinuous time intervals—useful for reducing the size of the 
+    This function wrapper enables the batch download of data for a list of dates 
+    or discontinuous time intervals—useful for reducing the size of the 
     data file necessary to backtest mid to long-term fundamental trading strategies
     driven by quarterly reporting dates.
     
@@ -103,13 +103,6 @@ def create_dt_list(beg_date, end_date, day_index):
     List[pandas.DatetimeIndex]
         list of DatetimeIndex objects
     """    
-    
-    # """ 
-    # @summary Creates datetime intervals 
-    # @param day_index => day of the week to run calculations
-    # @param 0-mon, 1-tues, ... 4-fri
-    # @return list of timestamps
-    # """ 
     trng                   = pd.date_range(beg_date, end_date)
     cal                    = USFederalHolidayCalendar()
     holidays               = cal.holidays(start=trng.min(), end=trng.max())  
@@ -132,6 +125,8 @@ def run_pipeline_chunks(pipe, start_date, end_date, chunks_len = None):
     """
     
     Split large pipeline data request into smaller chunks
+
+
 
     Args:
         pipe (_type_): `quantopian.pipeline`         

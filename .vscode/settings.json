@@ -1,0 +1,6 @@
+{
+    "python.defaultInterpreterPath": "C:\\ProgramData\\Miniconda3\\envs\\py2\\python.exe",
+    "python.condaPath":"C:\\ProgramData\\Miniconda3\\Scripts\\conda.exe",
+    "python.dataScience.sendSelectionToInteractiveWindow": true,
+    "python.terminal.activateEnvironment": true,
+}
