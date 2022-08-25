@@ -307,29 +307,29 @@ def drop_rows(df_list, bad_rows):
 def date_validate(asof_df, asof_maxdates):  
     """
     Create 2 DataFrames: 1 used for auditing and 1 to filter out date mismatches 
-    between filing date and reported "as of" dates for each morningstar line item. 
+    between filing date and reported 'as of' dates for each morningstar line item. 
 
     Parameters
     ----------
-    asof_df : pandas.DataFrame
-        MultiIndex dataframe where 
-            1st level index = data date
-            1st level index = stock symbol
-            column = filing date of 
-
-
-
-        the first level is a datetime, the second level
-        is an Equity object corresponding to pipeline security filters and the
-        columns for the previously added pipeline factors for each stock.
-
-    asof_maxdates : _type_
-        _description_
+    asof_df : pandas.DataFrame of datetimes(ns)
+        MultiIndex dataframe where 1st level index = data date, 
+        2nd level index = stock symbol, and column values are the as of dates 
+        associated with each line item within a particular data date group
+    asof_maxdates : pandas.DataFrame of datetimes(ns)
+        MultiIndex dataframe with same index levels where 
+        column values represent the most recent as_of date among all line items within a 
+        particular data date level
 
     Returns
     -------
-    _type_
-        _description_
+    pandas.DataFrame
+        MultiIndex dataframe (same index levels as above) with column values 
+        representing the differences (in days) between the two dates above. 
+    pandas.DataFrame
+        MultiIndex boolean dataframe (same index levels as above) where ones indicate 
+        valid data with matching 'as of' dates.
+        
+
     """
     asof_lag = -asof_df.sub(asof_maxdates, axis = 0)
     asof_valid = asof_lag.astype(int)
@@ -339,15 +339,22 @@ def date_validate(asof_df, asof_maxdates):
 
 @timeit
 def reformulate_CFS(CFS_f):
+    
     return CFS_f
 
 @timeit
 def reformulate_BS(BS_f):
-    """
-    @summary: reformulate balance sheet(BS) items to calculate refined measures 
-    of profitability. 
-    @param BS_f: source BS dataframe
-    @return df of reformulated BS data
+    """_summary_
+
+    Parameters
+    ----------  
+    BS_f : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
     """
     
     BS_shrtTrm_FA = [
@@ -366,10 +373,10 @@ def reformulate_BS(BS_f):
     BS_CSE = ['BS_common_stock_equity']
     
     BS_rf_list = {
-        'BS_shrtTrm_FA' :BS_shrtTrm_FA, 
-        'BS_lngTrm_FA' :BS_lngTrm_FA,
-        'BS_FO': BS_FO,
-        'BS_CSE': BS_CSE,
+        'BS_shrtTrm_FA' : BS_shrtTrm_FA,
+        'BS_lngTrm_FA'  : BS_lngTrm_FA,
+        'BS_FO'         : BS_FO,
+        'BS_CSE'        : BS_CSE,
     }
     
     BS_rf = pd.DataFrame()
