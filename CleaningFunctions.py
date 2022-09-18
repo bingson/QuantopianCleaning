@@ -3,17 +3,16 @@
 ## GETTING DATA ________________________________________________________________
 
 def timeit(method):
-    """
-    Calculate and print function runtime.
-    """
+    """ decorator to print the runtime of any function """
     def timed(*args, **kw):
-        ts         = time.time()
-        result     = method(*args, **kw)
-        te         = time.time()
-        hrs, rem   = divmod(te-ts,3600)
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+        hrs, rem = divmod(te-ts,3600)
         mins, secs = divmod(te-ts,60)
         print 'Run time: {} {} hrs {} mins {:4.4f} secs'.\
-            format(method.__name__, int(hrs), int(mins), secs)
+        format(method.__name__, int(hrs), int(mins), secs)
+        # print 'Run time: %r %2.2f sec' %(method.__name__, te-ts)
         return result
     return timed
 
@@ -42,10 +41,8 @@ def run_pipeline_list(pipe, pipeline_dates):
     Returns
     -------
     pandas.DataFrame
-        MultiIndex dataframe where the first level is a datetime, the second level
-        is an Equity object corresponding to pipeline security filters and the
-        columns for the previously added pipeline factors for each stock.
-
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with column values 
+        representing selected pipeline factors.
     """
 
     chunks     = []
@@ -83,9 +80,10 @@ def run_pipeline_list(pipe, pipeline_dates):
     return results
 
 @timeit
-def create_dt_list(beg_date, end_date, day_index):
+def dt_intervals(beg_date, end_date, day_index):
     """
-    Generate a list of valid historic market open dates corresponding to a day of the week.
+    Generate a list of valid historic weekly market open dates corresponding to 
+    a particular day of the week.
 
     The list can be used as an input for the run_pipeline_list function
     to test mid-term to long-term trading strategies.
@@ -94,17 +92,17 @@ def create_dt_list(beg_date, end_date, day_index):
     ----------
     beg_date : str
         Starting date that defines the time interval over which date points will
-        be generated (format: YYYY-MM-DD)
+        be generated (format: YYYY-MM-DD).
     end_date : str
         End date that defines the time interval over which date points will
-        be generated (format: YYYY-MM-DD)
+        be generated (format: YYYY-MM-DD).
     day_index : int
-        day of the week mon = 1, tue = 2, wed = 3, thu = 4, fri = 5
+        Day of the week mon = 1, tue = 2, wed = 3, thu = 4, fri = 5.
 
     Returns
     -------
     List[pandas.DatetimeIndex]
-        list of DatetimeIndex objects
+        List of DatetimeIndex objects corresponding to the input parameters.
     """
     trng                   = pd.date_range(beg_date, end_date)
     cal                    = USFederalHolidayCalendar()
@@ -126,7 +124,7 @@ def create_dt_list(beg_date, end_date, day_index):
 @timeit
 def run_pipeline_chunks(pipe, start_date, end_date, chunks_len = None): 
     """
-    Split large pipeline data request into smaller chunks.
+    Split large pipeline data download into smaller chunks.
 
     This function wrapper splits up a large pipeline data request into smaller
     pieces to overcome size and memory limits of Quantopian's pipeline engine.
@@ -151,10 +149,9 @@ def run_pipeline_chunks(pipe, start_date, end_date, chunks_len = None):
 
     Returns
     -------
-    pd.DataFrame
-        MultiIndex dataframe where the first level is a datetime, the second level
-        is an Equity object corresponding to pipeline security filters and the
-        columns for the previously added pipeline factors for each security.
+    pandas.DataFrame
+        MultiIndex dataframe where the first level represent date (datetime64), 
+        the second level company stock symbols, and columns pipeline factors.
     """
     chunks  = []  
     current = pd.Timestamp(start_date)  
@@ -187,29 +184,39 @@ def run_pipeline_chunks(pipe, start_date, end_date, chunks_len = None):
         print 'pd.concat failed'
         return chunks
 
-def Trl_dates (end_date, per, mltplr):
-    """get dates for trailing information update intervals""" 
-    end_date = datetime.strptime(end_date[0], '%Y-%m-%d')
-    out = []
-    for n in xrange(per):
-        if n != 0:
-            Q = str(end_date - MonthEnd(mltplr)*n)[:10]
-            out.append([Q])
-        else: pass
-    end_date = str(end_date)[:10]
-    out.append([end_date])
-    return sorted(out)
-
-# @timeit
+@timeit
 def sum_col_append(df_tgt, df_src, var_list):
-    """sum pandas.dataframe columns and add them to a tgt DataFrame"""
+    """
+    Sum specified list of columns from one pandas.DataFrame and append result to another
+    pandas.DataFrame.
+
+    Parameters
+    ----------
+    df_tgt : pandas.DataFrame
+        DataFrame to append summary columns to.
+    df_src : pandas.DataFrame
+        Dataframe with the columns to sum.
+    var_list : Dict [str,list[str]]
+        Dictionary of lists, with each list containing column headings of 
+        columns to sums (key becomes column heading of summed columns).
+
+    Returns
+    -------
+    pandas.DataFrame
+        df_tgt DataFrame with summed columns from the df_src DataFrame.
+    """
     for var, components in var_list.iteritems():
         df_tgt[var] = df_src[components].sum(axis = 1)
     return df_tgt
 
-# DollarVolume will calculate yesterday's 
-# dollar volume for each stock in the universe.
 class DollarVolume(CustomFactor):
+    """ 
+        Create DollarVolume custom factor 
+
+        DollarVolume will calculate the previous day's
+        dollar volume for each stock in the universe.
+
+    """
     
     inputs = [USEquityPricing.close, 
               USEquityPricing.volume]
@@ -223,7 +230,29 @@ class DollarVolume(CustomFactor):
 
 @timeit
 def mltplyArr(FS, asof_valid):
-    """iterative multiplication of two lists of dataframes"""
+    """
+    Multiply (element by element) two lists of DataFrames together.
+
+    Used to filter out stale data. Input DataFrames must have the same 
+    dimensions and hierarchical index levels.
+
+    Parameters
+    ----------
+    FS : list of pandas.DataFrame
+        MultiIndex dataframe where the first level are date (datetime64), 
+        the second level company stock symbols, and columns represent pipeline factors.
+    asof_valid : list of pandas.DataFrame
+        MultiIndex dataframe where the first level are date (datetime64), 
+        the second level company stock symbols. The column headings represent 
+        pipeline factors and column values are boolean values with 1s representing 
+        valid data. 
+
+    Returns
+    -------
+    pandas.DataFrame
+        MultiIndex dataframe where the first level are date (datetime64), 
+        the second level company stock symbols, and the columns pipeline factors.
+    """
     out = []
     for arr in zip(FS, asof_valid):
         out.append(pd.DataFrame(arr[0].values * arr[1].values, 
@@ -259,9 +288,9 @@ def subset_df(src_df, srchType, srchStrngs, mrg_out = True ):
     Returns
     -------
     pd.DataFrame
-        MultiIndex dataframe where the first level is a datetime, the second level
-        is an Equity object corresponding to pipeline security filters and the
-        columns for the previously added pipeline factors for each security.
+        MultiIndex dataframe where the first levels are datetimes, the second levels
+        correspond company stock symbols and the columns for the previously 
+        added pipeline factors for each security.
     """
 
     out = []
@@ -316,14 +345,13 @@ def date_validate(asof_df, asof_maxdates):
         2nd level index = stock symbol, and column values are the as of dates 
         associated with each line item within a particular data date group
     asof_maxdates : pandas.DataFrame of datetimes(ns)
-        MultiIndex dataframe with same index levels where 
-        column values represent the most recent as_of date among all line items within a 
-        particular data date level
+        MultiIndex dataframe with same index levels where column values represent 
+        the most recent as_of date among all line items within a particular data date level
 
     Returns
     -------
     pandas.DataFrame
-        MultiIndex dataframe (same index levels as above) with column values 
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with column values 
         representing the differences (in days) between the two dates above. 
     pandas.DataFrame
         MultiIndex boolean dataframe (same index levels as above) where ones indicate 
@@ -339,22 +367,64 @@ def date_validate(asof_df, asof_maxdates):
 
 @timeit
 def reformulate_CFS(CFS_f):
+    """
+    Reformulated cashflow statement. 
+
+    Free cash flow the difference between cash flow from operations and cash 
+    investment in operationsis the main focus in DCF analysis, liquidity analysis, 
+    and financial planning. Free cash flow, the net cash generated by operations 
+    (after cash investment), determines the ability of the firm to pay off its debt 
+    and return cash to shareholders. 
     
+    After the balance sheet and income statement are reformulated, separating 
+    financing from operating activities, we can directly calculate Free Cash Flow 
+    (FCF) using either of the following accounting identities.
+
+    
+    FCF = Operating Income - Change in Net Operating Assets 
+    FCF = OI - Delta NOA 
+
+    FCF = Net financial expense - Change in net financial obligations + Net dividends 
+    FCF = NFE - Delta NFO + d
+
+    These identities make reformulation of the cashflow statement unnecessary.
+
+    Parameters
+    ----------
+    CFS_f : pandas.DataFrame
+        
+
+    Returns
+    -------
+    pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with column values 
+        representing cash flow statement line items.
+        _description_
+    """
     return CFS_f
 
 @timeit
 def reformulate_BS(BS_f):
-    """_summary_
-
+    """
+    Reformulate balance sheet.
+    
+    The main idea behind financial statement reformulation is isolating financial 
+    assets/liabilities from operating assets/liabilities as a precursor to calculating 
+    more refined measures of financial leverage and operating profitability. 
+    (See Penman, Financial Statement Analysis and Security Valuation (2013) 
+    ISBN 978-007-132640-7)
+    
     Parameters
     ----------  
-    BS_f : _type_
-        _description_
+    BS_f : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with column values 
+        representing balance sheet related pipeline factors.
 
     Returns
     -------
-    _type_
-        _description_
+    pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with column values 
+        representing reformulated balance sheet items.
     """
     
     BS_shrtTrm_FA = [
@@ -404,10 +474,27 @@ def reformulate_BS(BS_f):
 @timeit
 def reformulate_IS(IS_f):
     """
-    @summary: reformulate income statement (IS) items to calculate refined measures of profitability. 
-    @param IS_f: source IS dataframe
-    @return df of reformulated IS data
+    Reformulate income statement.
+    
+    The main idea behind financial statement reformulation is isolating financial 
+    assets/liabilities from operating assets/liabilities as a precursor to calculating 
+    more refined measures of financial leverage and operating profitability. 
+    (See Penman, Financial Statement Analysis and Security Valuation (2013) 
+    ISBN 978-007-132640-7)
+
+    Parameters
+    ----------  
+    BS_f : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with column values 
+        representing income statement related pipeline factors.
+
+    Returns
+    -------
+    pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with column values 
+        representing reformulated income statement items.
     """
+    
     IS_rf = pd.DataFrame()
     
     # Core Net Financial Expense
@@ -442,14 +529,39 @@ def reformulate_IS(IS_f):
 
 @timeit
 def DPNT_ratios(BSrf_0yAgo, BSrf_1yAgo, ISrf_0yAgo, BS_avg = 1):
+    
     """
-    @summary: takes financial statement(FS) dataframes and calculates advanced dupont financial ratios
-    @param BSrf_0yAgo: dataframe of most recent balance sheet relative to a specific pipeline date
-    @param BSrf_1yAgo: dataframe of balance sheet 1yr earlier from BSrf_0yAgo
-    @param ISrf_0yAgo: dataframe of most recent income statement relative to a specific pipeline date
-    @param BS_avg: toggle using avg of beginning and ending values in denominator of ratio calcs; 
-        if value is 0, beginning of year BS values are used
+    Calculate refined Dupont measures of profitability and leverage as an intermediate input
+    to calculate S-score model features (Penman and Zhang, 2006). 
+    
+    See Nissim and Penman (2003) for more detailed information on the Dupont calculation.
+
+    Parameters
+    ----------
+    BSrf_0yAgo : pandas.DataFrame
+        Reformulated balance sheet for most recent year available.
+    BSrf_1yAgo : _type_
+        Reformulated balance sheet of year prior to the most recent available.
+    ISrf_0yAgo : _type_
+        Reformulated income stateemnt most recent year.
+    BS_avg : int, optional
+        Boolean variable to switch between using most recent end of year balance 
+        sheet values or an average of last two balance sheet years, by default uses
+        an average
+
+    Returns
+    -------
+    pandas.DataFrame
+        Components of advanced Dupont decomposition
+        ROCE = RNOA + FLEV (RNOA - NBC)
+
+        where
+            ROCE = Return on Common Equity 
+            RNOA = Return on Net Operating Assets 
+            FLEV = Financial Leverage
+            NBC  = net borrowing costs
     """
+
     DPNT_df = pd.DataFrame(index = ISrf_0yAgo.index.union(BSrf_1yAgo.index))
     if BS_avg == 1: 
         DPNT_df['RNOA']   = ISrf_0yAgo['IS_OI']  / ((BSrf_1yAgo['BS_NOA'] + BSrf_0yAgo['BS_NOA'])/2) 
@@ -475,12 +587,20 @@ def DPNT_ratios(BSrf_0yAgo, BSrf_1yAgo, ISrf_0yAgo, BS_avg = 1):
 # @timeit
 def reformulate_FS(FS_collection):
     """
-    @summary: applies financial statement data reshaping functions
-    @param FS_collection: list of GAAP financial statement dfs
-    @returns dataframe with alternative accounting data representation
-        where operating activities are separated from financing activities
-    
+    Apply financial statement reformulation functions.
+
+    Parameters
+    ----------
+    FS_collection : pandas.DataFrame
+        Raw morningstar balance sheet, income, and cash flow statement DataFrames.
+
+    Yields
+    ------
+    pandas.DataFrame
+        Reformulated balance sheet, income, and cash flow statements.
     """
+    
+    
     for FS in FS_collection:
         if   FS.columns.equals(BS_f_df.columns)  : yield reformulate_BS(FS)
         elif FS.columns.equals(IS_f_df.columns)  : yield reformulate_IS(FS)
@@ -489,6 +609,35 @@ def reformulate_FS(FS_collection):
 
 # @timeit
 def calc_factors(DPNT_0yAgo, DPNT_1yAgo, BS_0yAgo, BS_1yAgo, IS_0yAgo_TTM, CFS_0yAgo_TTM, current_end):
+    """
+    Calculate S-score factors for a particular data date.
+    
+    For a more detailed explanation see Penman and Zhang (2006) 
+    Modeling Sustainable Earnings and P/E Ratios with Financial Statement Analysis 
+    [https://ssrn.com/abstract=318967]. 
+
+    Parameters
+    ----------
+    DPNT_0yAgo : pandas.DataFrame 
+        Dupont ratio components most recent year
+    DPNT_1yAgo : pandas.DataFrame 
+        Dupont ratio components 1 year ago
+    BS_0yAgo : pandas.DataFrame 
+        Reformulated balance sheet most recent year
+    BS_1yAgo : pandas.DataFrame 
+        Reformulated balance sheet 1 year ago
+    IS_0yAgo_TTM : pandas.DataFrame 
+        Annualized reformulated income statement (add 4 quarters) 
+    CFS_0yAgo_TTM : pandas.DataFrame 
+        Annualized cash flow statement (add 4 quarters)
+    current_end : pandas.DatetimeIndex
+        most recent end of year period for historic data date.
+
+    Returns
+    -------
+    pandas.DataFrame 
+        DataFrame of S-score features for a particular data date.
+    """
     out = pd.DataFrame()
     out['RNOA_0']       = DPNT_0yAgo['RNOA']
     out['delta_RNOA_0'] = ((DPNT_0yAgo['RNOA']  - DPNT_1yAgo['RNOA']) / DPNT_1yAgo['RNOA'])
@@ -496,11 +645,7 @@ def calc_factors(DPNT_0yAgo, DPNT_1yAgo, BS_0yAgo, BS_1yAgo, IS_0yAgo_TTM, CFS_0
     out['delta_ATO_0']  = ((DPNT_0yAgo['ATO']   - DPNT_1yAgo['ATO'] ) / DPNT_1yAgo['ATO'])
     out['delta_NOA_0']  = ((BS_0yAgo['BS_NOA']  - BS_1yAgo['BS_NOA']) / BS_1yAgo['BS_NOA'])
     out['accr_0']       = IS_0yAgo_TTM['IS_OI'] - CFS_0yAgo_TTM['CFS_operating_cash_flow']
-    # out['mkt_PE']       = nfo_df.xs(current_end)['V_mktCp']/IS_0yAgo_TTM['IS_OI']
     out['mkt_EP']       = IS_0yAgo_TTM['IS_OI']/nfo_df.xs(current_end)['V_mktCp']
-    # out['accr_0']       = CFS_0yAgo_TTM['CFS_net_income_from_continuing_operations'] - 
-                          # CFS_0yAgo_TTM['CFS_operating_cash_flow']
-    # chose IS_OI because the latter excludes financial activities: interest inc/exp, debt service 
     out = winsorize(out, limits = 0.01)
     out = zscore(out) 
     out['BS_negNOA'] = nfo_df.xs(current_end)['BS_negNOA']
@@ -524,9 +669,33 @@ def zscore(df):
 @timeit
 def calc_signal_df(BS_rf_df, IS_rf_df, CFS_rf_df, nfo_df, date_idx, BS_avg_bool = 1):
     """
-    @summary: creates dataframe of inputs for machine learning/scoring models
-    
-    
+    Calculate S-score features over a historical time period.
+
+    Parameters
+    ----------
+    BS_rf_df : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with reformulated 
+        balance sheet column values.
+    IS_rf_df : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with reformulated 
+        income statement items (annualized) column values.
+    CFS_rf_df : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with cash flow 
+        statement items (annualized) column values.
+    nfo_df : pandas.DataFrame
+        Dataframe containing non-financial statement information including historic as of 
+        dates and quarterly filing dates used to validate data. 
+    date_idx : pandas.DatetimeIndex
+        list of dates with enough data to calculate S-score factors.
+    BS_avg_bool : int, optional
+        switch to toggle between using end of year balance sheet values or the average of
+        beginning and end of year values, by default 1 (average value)
+
+    Returns
+    -------
+    pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) with columns 
+        of historic S-score factors.
     """
     start = time.time(); item_count = 0
     # col names of trading signals
@@ -578,11 +747,21 @@ def calc_signal_df(BS_rf_df, IS_rf_df, CFS_rf_df, nfo_df, date_idx, BS_avg_bool 
     return features_df
 
 def calc_ft_dates(yrs):
-    """ 
-    @summary: removes dates from datetimeIndex that don't have enough 
-        historical data for fundamental factor calculations
-    @param yrs = number of years of trailing data required for calc'n
+    """
+    Returns dates with enough historical data for fundamental factor calculations.
+
+
     @return returns datetimeIndex of dates
+
+    Parameters
+    ----------
+    yrs : int
+        number of years of trailing financial statements required for calc'n
+
+    Returns
+    -------
+    _type_
+        _description_
     """
     TS_dates = pd.unique(result.index.get_level_values(0).tz_localize(None))
     TS_dates = pd.DatetimeIndex(TS_dates)
@@ -594,33 +773,52 @@ def _add_4qtrs(stk, idx, asof_dTbl, asof_grp, src_df):
     FS = None
     for i in idx:
         if FS is None: FS = src_df.loc[asof_dTbl[asof_grp[i]]].loc[stk].fillna(0)
-        else: FS = FS + src_df.loc[asof_dTbl[asof_grp[i]]].loc[stk].fillna(0)
-    if src_df.columns.equals(CFS_f_df.columns): 
-        # set beg cash to value at the beg of first quarter of TTM instead of summing across 4 qtrs
+        else:     FS = FS + src_df.loc[asof_dTbl[asof_grp[i]]].loc[stk].fillna(0)
+    if src_df.columns.equals(CFS_f_df.columns):  
+        # set beg cash to value at the start of first quarter of TTM instead of summing across 4 qtrs
         FS.CFS_beginning_cash_position = \
         src_df.loc[asof_dTbl[asof_grp[idx[0]]]].loc[stk].CFS_beginning_cash_position
     return FS
 
 @timeit
 def Hist_FS(BS_f_df, IS_f_df, CFS_f_df, nfo_df, TGT_endDate, num = 4):
-    """ 
-    @summary: Returns 3 years of trailing quarterly financial statements and annualizes IS & CFS
-    @param BS_f_df, IS_f_df, CFS_f_df: balance sheet, income statement, cash flow statement df. 
-    @param TGT_endDate: timestamp of pipeline date to retrieve trailing data for.
-    @param num: number of historical years to retrieve.
-    @return 3 BS/IS/CFS dataframes corresponding to trailing 3 years of annualized data; 
-        balance sheet BS_3yAgo included for for ratios using BS averages (beg + end year avg).
     """
-    # timestamp for start of 4 year slice of data ending in tgt_endDate
+    Create dataframes for 4 years of trailing balance sheets and 3 years of annualized
+    trailing income & cash flow statements used as an intermediate input to calculate S-score factors. 
+
+    Parameters
+    ----------
+    BS_f_df : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) of Balance sheet values over the period of interest.
+    IS_f_df : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) of income statement values over the period of interest.
+    CFS_f_df : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) of cash flow statement values over the period of interest.
+    nfo_df : pandas.DataFrame
+        MultiIndex dataframe (level 1 = date, level 2 = symbol) of company information over the period of interest;  
+    TGT_endDate : pandas.Timestamp
+        timestamp for the date to use as target (i.e., current period) or time 0 period.
+    num : int, optional
+        number of years to slice data required for financio ratio calculations, by default 4
+
+    Returns
+    ------- 
+    pandas.DataFrames
+        10 MultiIndex dataframes (level 1 = date, level 2 = symbol) for 
+        - 4 dataframes beging and ending year balance steets for 3 years of trailing balance sheet data
+        - 3 years of trailing income statement data (annualized)
+        - 3 years of trailing cashflow statement statement data (annualized)
+
+    """
     TTM_begDate = TGT_endDate - MonthBegin((12*num)+1) # 
     min_qtrs = num * 3 + 1 # min qtrs of data for 3 yrs trailing
     
     # create 3mth sequences of past asof dates for debugging purposes and to test consistency of quaterly
-    # asof date sequences: sometimes companies change quarter ends. 
+    # asof date sequences (sometimes companies change quarter ends). 
     # for n in range(num):
     #     nfo_df['asof_'+str(n + 1)+'QSub'] = nfo_df['max_asof'] - MonthEnd(3 * (n + 1))
     
-    # initialize empty dataframes with same symbol and column indexes as last rpt'd qtr
+    # initialize empty dataframes with same symbol and column indexes as last rpt'd qtrj
     BS_0yAgo      = pd.DataFrame().reindex_like(BS_f_df.xs(TGT_endDate))
     BS_1yAgo      = pd.DataFrame().reindex_like(BS_f_df.xs(TGT_endDate))
     BS_2yAgo      = pd.DataFrame().reindex_like(BS_f_df.xs(TGT_endDate))
@@ -651,13 +849,13 @@ def Hist_FS(BS_f_df, IS_f_df, CFS_f_df, nfo_df, TGT_endDate, num = 4):
             
             for n in xrange(min_qtrs): 
             # this loop finds the date when each historic quarterly was the most recent
-            # available; associated timestamps will be used to annualize IS & CFS 10Qs (3 mth ending)
+            # available; associated timestamps will be used to annualize IS & CFS 10Qs (3 mth ending) ,
                 
                 asof_dateIdx = -(n + 1) 
                 
                 # data_date = last pipeline date when old asof dates were the most recent data available;
                 # using most recent pipeline dates for each qtr end rpt'g data to reflect updated 
-                # info in amended filings
+                # info in amended filings 
                 data_date = stk_grpby.get_group(stk).level_0.loc[\
                             stk_grpby.get_group(stk).max_asof == \
                             asof_grp[asof_dateIdx]].max().tz_localize(None)
@@ -685,9 +883,7 @@ def Hist_FS(BS_f_df, IS_f_df, CFS_f_df, nfo_df, TGT_endDate, num = 4):
             CFS_1yAgo_TTM.loc[stk] = _add_4qtrs(stk, y1_Qidx, asof_dTbl, asof_grp, CFS_f_df)
             CFS_2yAgo_TTM.loc[stk] = _add_4qtrs(stk, y2_Qidx, asof_dTbl, asof_grp, CFS_f_df)
                 
-        else: insufficient_data[stk] = len(asof_grp) # record stks with insufficient data 
-                                                     # problems; likely related to boundary cases in 
-                                                     # pipeline universe filter
+        else: insufficient_data[stk] = len(asof_grp) # log stks with insufficient data 
 
     return BS_0yAgo,      BS_1yAgo,      BS_2yAgo,      BS_3yAgo,\
            IS_0yAgo_TTM,  IS_1yAgo_TTM,  IS_2yAgo_TTM,\
