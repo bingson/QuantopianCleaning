@@ -9,4 +9,3 @@ Fundamental for the Quantopian research environment.
 * GitHub pages web optimized link: http://bit.ly/2HJS1mi
 
 * This Jupyter Notebook illustrates code examples for the ETL function library above.
-
