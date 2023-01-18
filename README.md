@@ -1,4 +1,4 @@
-# Morningstar fundamentaldata ETL Library 
+# Morningstar fundamental data ETL Library 
 ## [CleaningFunctions.py](https://github.com/bingson/QuantopianCleaning/blob/master/CleaningFunctions.py)
 
 Library of convenience functions for cleaning and reshaping Morningstar 
